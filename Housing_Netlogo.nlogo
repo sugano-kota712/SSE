@@ -1,4 +1,4 @@
-turtles-own [ num-member age1 age2 age3 age4 next-state neighbor-state count-resident neighbor-points ]  ;; also need to set age2
+turtles-own [ num-member age1 age2 age3 age4 flag-central next-state neighbor-state count-resident neighbor-points ]  ;; also need to set age2
 patches-own [ age-bld use-type ]
 globals [ singles central area demand-house demand-apart age-limit time-step capacity]
 
@@ -18,10 +18,10 @@ to setup
   setup-patches
   set central []
   foreach (range (- len) (len + 1)) [ n ->
-      foreach (range (- len) (len + 1)) [ k ->
-        set central sentence central (list (list n k))
-      ]
+    foreach (range (- len) (len + 1)) [ k ->
+      set central sentence central (list (list n k))
     ]
+  ]
   set area sqrt (length central)
   patch-draw
   turtle-draw
@@ -45,6 +45,7 @@ end
 
 to setup-turtle
   set num-member 0
+  set flag-central 0
   set next-state 0
   ;    ifelse age1 <= 55 [
   ;      set num-member item 0 (random-in-range 2 7 1 1)
@@ -70,16 +71,25 @@ end
 
 to setup-patches
   ask patches [
-    ifelse count (turtles-at 0 0) > 0 [
+    let families (count (turtles-at 0 0))
+    ifelse families = 1 [
       set use-type 1
       set age-bld (item 0 random-in-range 0 age-limit time-step 1)
     ] [
-      ifelse random 100 < 3 [  ;; unused house at 3% of probability
-        set use-type 0
+      ifelse families > 1 [
+        if families > 4 [ ask n-of (families - 4) (turtles-at 0 0) [ die ] ]
+        set use-type 2
         set age-bld (item 0 random-in-range 0 age-limit time-step 1)
-      ] [
-      set use-type -1
-      set age-bld -1
+        ask turtles-at 0 0 [ set flag-central 1 ]
+      ]
+      [
+        ifelse random 100 < 3 [  ;; unused house at 3% of probability
+          set use-type -1
+          set age-bld (item 0 random-in-range 0 age-limit time-step 1)
+        ] [
+          set use-type 0
+          set age-bld -1
+        ]
       ]
     ]
   ]
@@ -108,13 +118,16 @@ to go
 
   ask patches [
     if age-bld = age-limit [
-      set use-type -1             ;; Deconstruction
+      set use-type 0             ;; Deconstruction
     ]
   ]
   ask turtles [
     build-stay
   ]
   build-central
+;  ask turtles [
+;  die-central
+;  ]
   ask patches [
     if age-bld = age-limit [
       set age-bld -1        ;; turn into an unused land
@@ -122,17 +135,24 @@ to go
   ]
   patch-draw
   turtle-draw
+  ;ask patches with [pcolor = brown];;;;;;;;;;;;;;;Just in Case
   tick
 end
 
 to set-state
-  ifelse [age-bld] of patch-here = age-limit [
+  ifelse (random 100 > 4 * ([age-bld] of patch-here - age-limit)) [
     ifelse age2 != [] and num-member >= 3 [
       ifelse random 100 < 75 [ set next-state 1 ]
       [ set next-state 2 ]
-    ] [ifelse random 100 < 75 [ set next-state 2 ]
-      [ set next-state 1 ]
-    ] 
+    ] [
+      ifelse color = red [
+        ifelse random 100 < 75 [set next-state 4]
+          [set next-state 2]
+      ] [
+        ifelse random 100 < 75 [ set next-state 2 ]
+        [ set next-state 1 ]
+      ]
+    ]
   ] [ set next-state 0 ]
 end
 
@@ -153,10 +173,18 @@ to search-neighbors
 end
 
 to set-neighbor-state
-  if neighbor-state < env [
-    set next-state next-state + 2
+  if next-state < 3 [
+    if neighbor-state < env [
+      set next-state next-state + 2
+    ]
   ]
 end
+
+;to buy-secondhand
+;  let build-cent patches with [use-type < 0]
+;  let b-c count build-avl at
+;;  while [(p-s < count patches with [use-type < 0]) and (t-s < count turtles with [next-state > 0 and next-state < 3]] [
+;  ask
 
 to build-stay
   ;;let neighboring-families []
@@ -195,8 +223,9 @@ end
 
 to central-set
   foreach (central) [ loc ->
-    if item 0 ([use-type] of (patches at-points (list (loc)))) >= 0 [
+    if item 0 ([use-type] of (patches at-points (list (loc)))) > 0 [
       set central remove loc central
+      set central remove-duplicates central
     ]
   ]
 end
@@ -216,35 +245,45 @@ to build-central
     set demand-apart (floor (count turtles with [next-state = 4] / 4) + 1)
   ] [ set demand-apart (floor (count turtles with [next-state = 4] / 4)) ]
 
-  while [length central < (demand-house + demand-apart)] [
-    area-broaden
-  ]
+  while [length central < (demand-house + demand-apart)] [ area-broaden ]
 
   foreach (n-of demand-house central) [ loc ->
-      ask patches at-points (list (loc)) [
+    ask patches at-points (list (loc)) [
+      ifelse use-type = -1 [ set use-type 1 ]
+      [
+        if use-type = 0 [
         set use-type 1
         set age-bld 0
+        ]
       ]
-      ask one-of turtles with [next-state = 3] [
-        let x3 item 0 loc
-        let y3 item 1 loc
-        move-to patch x3 y3
-;        set next-state 0
-      ]
+    ]
+    ask one-of turtles with [next-state = 3] [
+      let x3 item 0 loc
+      let y3 item 1 loc
+      move-to patch x3 y3
+      set flag-central 1
+      ;        set next-state 0
+    ]
+    central-set
   ]
-  central-set
+
   foreach (n-of demand-apart central) [ loc ->
     ask patches at-points (list (loc)) [
-      set use-type 1
-      set age-bld 0
+      ifelse use-type = 0 [
+        set use-type 2
+        set age-bld 0
+      ] [
+        if use-type = -2 [ set use-type 2 ]
+      ]
     ]
-    foreach (range 0 capacity) [
+    foreach range capacity [
       if any? turtles with [next-state = 4] [
         ask one-of turtles with [next-state = 4] [
           let x4 item 0 loc
           let y4 item 1 loc
           move-to patch x4 y4
-;          set next-state 0
+          set flag-central 1
+          ;          set next-state 0
         ]
       ]
     ]
@@ -254,7 +293,7 @@ end
 
 to area-broaden
   set area area + 1
-  foreach (range (- area) (- area + 1)) [ k ->
+  foreach (range (- area) area) [ k ->
     set central sentence central (list (list area k) (list k area) (list (- area) k) (list k (- area)))
   ]
 end
@@ -314,7 +353,7 @@ to population-shift
   ]
   set-num-member
   if num-member = 0 [
-    ask patch-here [ set use-type 0 ]
+    ask patch-here [ set use-type (-1 * use-type) ]
     die
   ]
 end
@@ -407,10 +446,12 @@ end
 
 to patch-draw
   ask patches [
-    ifelse use-type = 0 [ set pcolor black ] [
-      ifelse use-type = -1 [ set pcolor white ] [
-        ifelse use-type = 1 [ set pcolor brown ] [
-          set pcolor green ]
+    ifelse use-type = -2 [ set pcolor 104 ] [
+      ifelse use-type = -1 [ set pcolor black ] [
+        ifelse use-type = 0 [ set pcolor white ] [
+          ifelse use-type = 1 [ set pcolor brown ] [
+            set pcolor green ]
+        ]
       ]
     ]
   ]
@@ -430,4 +471,23 @@ to-report random-in-range [low high step num]
 ;  ]
 end
 
-
+to die-central
+  ask turtles-on patches with [pcolor = brown] [
+    let num-resi count turtles-here
+    if num-resi > 1 [
+      foreach range (num-resi - 1) [
+        ask one-of turtles-here [ move-to one-of patches with [ use-type < 0 ]
+          ask patch-here [ set use-type (-1 * use-type) ] ]
+      ]
+    ]
+  ]
+  ask turtles-on patches with [pcolor = 104 or pcolor = black] [
+    let num-resi count turtles-here
+    if num-resi >= 1 [
+      foreach range (num-resi) [
+        ask one-of turtles-here [ move-to one-of patches with [ use-type < 0 ]
+        ask patch-here [ set use-type (-1 * use-type) ] ]
+    ]
+  ]
+  ]
+end
