@@ -77,7 +77,7 @@ to setup-patches
       set age-bld (item 0 random-in-range 0 age-limit time-step 1)
     ] [
       ifelse families > 1 [
-        if families > 4 [ ask n-of (families - 4) (turtles-at 0 0) [ die ] ]
+        if families > 4 [ ask n-of (families - 4) (turtles-at 0 0) [ die ] ]    ;;;;; less than 4 families at each apartment
         set use-type 2
         set age-bld (item 0 random-in-range 0 age-limit time-step 1)
         ask turtles-at 0 0 [ set flag-central 1 ]
@@ -125,9 +125,7 @@ to go
     build-stay
   ]
   build-central
-;  ask turtles [
-;  die-central
-;  ]
+  die-central
   ask patches [
     if age-bld = age-limit [
       set age-bld -1        ;; turn into an unused land
@@ -135,6 +133,7 @@ to go
   ]
   patch-draw
   turtle-draw
+  
   ;ask patches with [pcolor = brown];;;;;;;;;;;;;;;Just in Case
   tick
 end
@@ -210,7 +209,8 @@ to build-stay
       ask turtles at-points (list (one-of neighbor-points)) [
         if next-state = 2 or next-state = 4 [  ;; even if the neighbor was thinking of moving tothe central
           set next-state 0                       ;; if he had been counted by other families as a neighbor in future
-          move-to patch-build                    ;; let them stay and not to migrate to the central
+            ask patch-here [ set use-type (-1 * use-type) ]
+            move-to patch-build                    ;; let them stay and not to migrate to the central
           set count-resident count-resident + 1
         ]
       ]
@@ -258,6 +258,7 @@ to build-central
       ]
     ]
     ask one-of turtles with [next-state = 3] [
+      ask patch-here [ set use-type (use-type * -1) ]
       let x3 item 0 loc
       let y3 item 1 loc
       move-to patch x3 y3
@@ -281,6 +282,7 @@ to build-central
         ask one-of turtles with [next-state = 4] [
           let x4 item 0 loc
           let y4 item 1 loc
+          ask patch-here [ set use-type (use-type * -1) ]
           move-to patch x4 y4
           set flag-central 1
           ;          set next-state 0
@@ -445,6 +447,12 @@ to turtle-draw
 end
 
 to patch-draw
+  ask patches with [ pcolor = brown ] [
+    if not any? turtles-here [ set use-type -1 ]
+  ]
+  ask patches with [ pcolor = green ] [
+    if not any? turtles-here [ set use-type -2 ]
+  ]
   ask patches [
     ifelse use-type = -2 [ set pcolor 104 ] [
       ifelse use-type = -1 [ set pcolor black ] [
@@ -472,7 +480,27 @@ to-report random-in-range [low high step num]
 end
 
 to die-central
-  ask turtles-on patches with [pcolor = brown] [
+  ask turtles-on patches with [use-type = 0] [
+    let num-resi count turtles-here
+    if num-resi >= 1 [
+      foreach range (num-resi) [
+        ask one-of turtles-here [ move-to one-of patches with [ use-type < 0 ] ]
+      ]
+    ]
+  ]
+  ask turtles-on patches with [use-type = -2 or use-type = -1] [
+;    let num-resi count turtles-here
+;    if num-resi >= 1 [
+;;      foreach range (num-resi) [
+;        ask one-of turtles-here [ move-to one-of patches with [ use-type < 0 ]
+;        ask patch-here [ set use-type (-1 * use-type) ] ]
+;    ]
+;  ]
+    if [use-type] of patch-here < 0 [
+      ask patch-here [ set use-type (-1 * use-type) ]
+    ]    
+  ]
+  ask turtles-on patches with [use-type = 1] [
     let num-resi count turtles-here
     if num-resi > 1 [
       foreach range (num-resi - 1) [
@@ -480,14 +508,5 @@ to die-central
           ask patch-here [ set use-type (-1 * use-type) ] ]
       ]
     ]
-  ]
-  ask turtles-on patches with [pcolor = 104 or pcolor = black] [
-    let num-resi count turtles-here
-    if num-resi >= 1 [
-      foreach range (num-resi) [
-        ask one-of turtles-here [ move-to one-of patches with [ use-type < 0 ]
-        ask patch-here [ set use-type (-1 * use-type) ] ]
-    ]
-  ]
   ]
 end
