@@ -1,10 +1,10 @@
 turtles-own [ num-member age1 age2 age3 age4 flag-central next-state neighbor-state count-resident neighbor-points ]  ;; also need to set age2
 patches-own [ age-bld use-type ]
-globals [ singles central area demand-house demand-apart age-limit time-step capacity]
+globals [ singles central demand-house demand-apart age-limit time-step capacity]
 
 to setup
   clear-all
-  set age-limit 30
+  set age-limit 50
   set time-step 5
   set capacity 4
   ;;set env 8
@@ -22,7 +22,6 @@ to setup
       set central sentence central (list (list n k))
     ]
   ]
-  set area sqrt (length central)
   patch-draw
   turtle-draw
   reset-ticks
@@ -96,7 +95,7 @@ to setup-patches
 end
 
 to go
-  if ticks >= 100 / time-step [ stop ]  ;; 100 yers
+  if ticks >= 200 / time-step [ stop ]  ;; 100 yers
   ask patches with [use-type > 0] [ set age-bld age-bld + time-step ]
   ask turtles [
 ;    foreach [age1 age2 age3 age4] [ age-list ->      ;; Why needs literal not age1 ?
@@ -122,9 +121,8 @@ to go
     ]
   ]
   ask turtles [
-    build-stay
-  ]
-  build-central
+    build-stay ]
+    build-central
   die-central
   ask patches [
     if age-bld = age-limit [
@@ -133,7 +131,7 @@ to go
   ]
   patch-draw
   turtle-draw
-  
+
   ;ask patches with [pcolor = brown];;;;;;;;;;;;;;;Just in Case
   tick
 end
@@ -232,20 +230,49 @@ end
 
 ;to build-central-cycle  ;; no need any more
 ;  [
-;    area-broaden
+;    len-broaden
 ;    build-central-cycle
 ;  ]
 ;end
 
-to build-central
+to build-central  
+  foreach (central) [ loc ->
+    ask patches at-points (list (loc)) [
+    let x0 item 0 loc
+    let y0 item 1 loc
+    if [use-type] of patch-at x0 y0 = -2 [
+      if any? turtles with [ next-state = 4 ] [
+        ask one-of turtles with [next-state = 4] [
+          ask patch xcor ycor [ set use-type (use-type * -1) ]
+          move-to patch x0 y0
+          ask patch x0 y0 [ set use-type 2 ]
+          set flag-central 1
+          set next-state 0
+        ]
+      ]
+    ]
+    if [use-type] of patch-at x0 y0 = -1 [
+      if any? turtles with [ next-state = 3 ] [
+        ask one-of turtles with [next-state = 3] [
+          ask patch xcor ycor [ set use-type (use-type * -1) ]
+          move-to patch x0 y0
+          ask patch-here [ set use-type 1 ]
+          set flag-central 1
+          set next-state 0
+        ]
+      ]
+    ]
+  ]
+  ]
+  
   central-set
   set demand-house count turtles with [next-state = 3]
   set demand-apart 0
   ifelse remainder (count turtles with [next-state = 4]) 4 > 0 [
     set demand-apart (floor (count turtles with [next-state = 4] / 4) + 1)
   ] [ set demand-apart (floor (count turtles with [next-state = 4] / 4)) ]
-
-  while [length central < (demand-house + demand-apart)] [ area-broaden ]
+  
+  while [length central < (demand-house + demand-apart)] [ len-broaden ]
 
   foreach (n-of demand-house central) [ loc ->
     ask patches at-points (list (loc)) [
@@ -293,11 +320,12 @@ to build-central
   ]
 end
 
-to area-broaden
-  set area area + 1
-  foreach (range (- area) area) [ k ->
-    set central sentence central (list (list area k) (list k area) (list (- area) k) (list k (- area)))
+to len-broaden
+  set len len + 1
+  foreach (range (- len) len) [ k ->
+    set central sentence central (list (list len k) (list k len) (list (- len) k) (list k (- len)))
   ]
+  central-set
 end
 
 ;to age-shift
@@ -344,9 +372,9 @@ end
 
 to population-shift
 
-  if random 100 < 20 [ if age4 != [] [ set age4 remove (one-of age4) age4 ] ]  ;;;;;;;;;;;;;;;;
-  if random 100 < 10 [ if age3 != [] [ set age3 remove (one-of age3) age3 ] ]
-  if random 100 < 10 [ if age2 != [] [ set age2 remove (one-of age2) age2 ] ]
+  if random 100 < 15 [ if age4 != [] [ set age4 remove (one-of age4) age4 ] ]  ;;;;;;;;;;;;;;;;
+  if random 100 < 7 [ if age3 != [] [ set age3 remove (one-of age3) age3 ] ]
+  if random 100 < 5 [ if age2 != [] [ set age2 remove (one-of age2) age2 ] ]
   if random 100 < 5 [ if age1 != [] [ set age1 remove (one-of age1) age1 ] ]
 
   if length age2 >= 2 and random 100 > sum age2 [                       ;; give birth
@@ -498,7 +526,7 @@ to die-central
 ;  ]
     if [use-type] of patch-here < 0 [
       ask patch-here [ set use-type (-1 * use-type) ]
-    ]    
+    ]
   ]
   ask turtles-on patches with [use-type = 1] [
     let num-resi count turtles-here
